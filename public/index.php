@@ -90,41 +90,46 @@ $app->get('/users', function (Request $request, Response $response) {
 
 
 $app->put('/users/saveScore/{id}', function (Request $request, Response $response) {
-
     $id = $request->getAttribute('id');
     $data = $request->getParsedBody();
     $score = $data['score'];
- 
-    // SQL pour vérifier l'existence de l'utilisateur avec le login et le mot de passe fournis
-    $sql = "UPDATE utilisateur SET score = :score WHERE id_utilisateur =$id"; // Remplacer par votre vrai nom de colonne pour le mot de passe
-  
+
+    $sqlUpdate = "UPDATE utilisateur SET score = :score WHERE id_utilisateur = :id";
+    $sqlSelect = "SELECT score FROM utilisateur WHERE id_utilisateur = :id";
+
     try {
         $db = new DB();
         $conn = $db->connect();
-  
-        $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':score', $score);
-        $stmt->execute();
-  
-        $result = $stmt->execute();
-  
+
+        // Mise à jour du score
+        $stmtUpdate = $conn->prepare($sqlUpdate);
+        $stmtUpdate->bindParam(':score', $score);
+        $stmtUpdate->bindParam(':id', $id);
+        $stmtUpdate->execute();
+
+        // Sélection du score mis à jour
+        $stmtSelect = $conn->prepare($sqlSelect);
+        $stmtSelect->bindParam(':id', $id);
+        $stmtSelect->execute();
+        $updatedScore = $stmtSelect->fetch(PDO::FETCH_OBJ);
+
         $db = null;
-        echo "Update successful! ";
-        $response->getBody()->write(json_encode($result));
-        return $response
-          ->withHeader('content-type', 'application/json')
-          ->withStatus(200);
-      } catch (PDOException $e) {
-        $error = array(
-          "message" => $e->getMessage()
-        );
-     
+        
+        if ($updatedScore) {
+            // Envoi du score mis à jour
+            $response->getBody()->write(json_encode(['success' => true, 'updatedScore' => $updatedScore->score]));
+        } else {
+            // Gestion de l'erreur si le score n'est pas trouvé
+            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Score not updated']));
+        }
+
+        return $response->withHeader('content-type', 'application/json')->withStatus(200);
+    } catch (PDOException $e) {
+        $error = ['message' => $e->getMessage()];
         $response->getBody()->write(json_encode($error));
-        return $response
-          ->withHeader('content-type', 'application/json')
-          ->withStatus(500);
+        return $response->withHeader('content-type', 'application/json')->withStatus(500);
     }
-  });
+});
 
 
 
